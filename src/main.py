@@ -8,7 +8,7 @@ import sys
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
-from graph import load_test_graph, build_graph, find_cycle, print_graph
+from graph import load_test_graph, build_graph, find_cycle, print_graph, reverse_graph
 
 PACKAGE_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$")
 VERSION_RE = re.compile(r"^\d+(\.\d+)*((a|b|rc)\d+)?$")
@@ -34,6 +34,8 @@ def build_parser():
                         help="версия пакета (обязательна в реальном режиме)")
     parser.add_argument("--ascii-tree", action="store_true",
                         help="вывод зависимостей в формате ASCII-дерева")
+    parser.add_argument("--reverse", action="store_true",
+                        help="вывод обратных зависимостей (тестовый режим)")
     return parser
 
 
@@ -74,10 +76,18 @@ def validate_args(args):
         validate_package(args.package),
         validate_version(args.version, args.test_mode),
         validate_repo(args.repo, args.test_mode),
+        validate_reverse(args.reverse, args.test_mode),
     ):
         if check is not None:
             errors.append(check)
     return errors
+
+
+def validate_reverse(reverse, test_mode):
+    """Обратные зависимости доступны только в тестовом режиме."""
+    if reverse and not test_mode:
+        return "режим --reverse требует --test-mode"
+    return None
 
 
 def print_config(args):
@@ -85,11 +95,13 @@ def print_config(args):
     version = args.version if args.version is not None else "не задана"
     mode = "включен" if args.test_mode else "выключен"
     tree = "включен" if args.ascii_tree else "выключен"
+    reverse = "включен" if args.reverse else "выключен"
     print(f"package: {args.package}")
     print(f"repo: {args.repo}")
     print(f"test-mode: {mode}")
     print(f"version: {version}")
     print(f"ascii-tree: {tree}")
+    print(f"reverse: {reverse}")
 
 
 def fetch_package_info(repo, package, version):
@@ -160,8 +172,20 @@ def show_graph(deps_graph):
         print("Обнаружен цикл: " + " -> ".join(cycle))
 
 
+def show_reverse(graph, package):
+    """Печатает пакеты, зависящие от данного (прямо и транзитивно)."""
+    reversed_graph = reverse_graph(graph)
+    reach = build_graph(lambda name: reversed_graph.get(name, []), package)
+    names = sorted(set(reach) - {package})
+    print(f"Обратные зависимости {package}:")
+    if not names:
+        print("  отсутствуют")
+    for name in names:
+        print(f"  {name}")
+
+
 def run_test_mode(args):
-    """Тестовый режим: граф из файла, DFS, циклы."""
+    """Тестовый режим: граф из файла, DFS, циклы, обратные зависимости."""
     graph, error = load_test_graph(args.repo)
     if error is not None:
         print(f"Ошибка: {error}", file=sys.stderr)
@@ -170,6 +194,9 @@ def run_test_mode(args):
         print(f"Ошибка: пакет {args.package} не найден в графе",
               file=sys.stderr)
         return 1
+    if args.reverse:
+        show_reverse(graph, args.package)
+        return 0
     show_graph(build_graph(lambda name: graph.get(name, []), args.package))
     return 0
 

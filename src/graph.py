@@ -79,3 +79,11 @@ def print_graph(graph):
     for node in sorted(graph):
         deps = " ".join(graph[node])
         print(f"{node}: {deps}".rstrip())
+
+def reverse_graph(graph):
+    """Обращает рёбра графа: {пакет: [кто от него зависит]}."""
+    result = {node: [] for node in graph}
+    for node, deps in graph.items():
+        for dep in deps:
+            result.setdefault(dep, []).append(node)
+    return result
