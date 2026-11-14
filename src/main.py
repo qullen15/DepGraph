@@ -8,6 +8,7 @@ import sys
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
+from graph import load_test_graph, build_graph, find_cycle, print_graph
 
 PACKAGE_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$")
 VERSION_RE = re.compile(r"^\d+(\.\d+)*((a|b|rc)\d+)?$")
@@ -96,7 +97,10 @@ def fetch_package_info(repo, package, version):
     base = repo.rstrip("/")
     if base.endswith("/pypi"):
         base = base[: -len("/pypi")]
-    url = f"{base}/pypi/{package}/{version}/json"
+    if version is None:
+        url = f"{base}/pypi/{package}/json"
+    else:
+        url = f"{base}/pypi/{package}/{version}/json"
     try:
         with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT) as resp:
             return json.load(resp), None
@@ -137,8 +141,52 @@ def print_dependencies(package, version, deps):
         print(f"  {name} {spec}".rstrip())
 
 
+def make_real_get_deps(repo):
+    """Возвращает провайдер зависимостей из PyPI (последняя версия)."""
+    def get_deps(name):
+        info, error = fetch_package_info(repo, name, None)
+        if error is not None:
+            return []
+        return [dep for dep, _ in get_direct_dependencies(info)]
+    return get_deps
+
+
+def show_graph(deps_graph):
+    """Печатает граф и сообщает о найденном цикле."""
+    print_graph(deps_graph)
+    cycle = find_cycle(deps_graph)
+    if cycle is not None:
+        print("Обнаружен цикл: " + " -> ".join(cycle))
+
+
+def run_test_mode(args):
+    """Тестовый режим: граф из файла, DFS, циклы."""
+    graph, error = load_test_graph(args.repo)
+    if error is not None:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return 1
+    if args.package not in graph:
+        print(f"Ошибка: пакет {args.package} не найден в графе",
+              file=sys.stderr)
+        return 1
+    show_graph(build_graph(lambda name: graph.get(name, []), args.package))
+    return 0
+
+
+def run_real_mode(args):
+    """Реальный режим: прямые зависимости + транзитивный граф."""
+    info, error = fetch_package_info(args.repo, args.package, args.version)
+    if error is not None:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return 1
+    deps = get_direct_dependencies(info)
+    print_dependencies(args.package, args.version, deps)
+    show_graph(build_graph(make_real_get_deps(args.repo), args.package))
+    return 0
+
+
 def main():
-    """Точка входа: параметры, проверка, конфигурация, сбор зависимостей."""
+    """Точка входа: параметры, проверка, конфигурация, режимы."""
     args = build_parser().parse_args()
     errors = validate_args(args)
     if errors:
@@ -147,15 +195,8 @@ def main():
         raise SystemExit(1)
     print_config(args)
     if args.test_mode:
-        print("Тестовый режим: анализ графа появится на этапе 3.")
-        raise SystemExit(0)
-    info, error = fetch_package_info(args.repo, args.package, args.version)
-    if error is not None:
-        print(f"Ошибка: {error}", file=sys.stderr)
-        raise SystemExit(1)
-    deps = get_direct_dependencies(info)
-    print_dependencies(args.package, args.version, deps)
-    raise SystemExit(0)
+        raise SystemExit(run_test_mode(args))
+    raise SystemExit(run_real_mode(args))
 
 
 if __name__ == "__main__":
