@@ -141,10 +141,11 @@ def print_dependencies(package, version, deps):
         print(f"  {name} {spec}".rstrip())
 
 
-def make_real_get_deps(repo):
-    """Возвращает провайдер зависимостей из PyPI (последняя версия)."""
+def make_real_get_deps(repo, root, version):
+    """Провайдер: корень — заданная версия, остальные — последняя."""
     def get_deps(name):
-        info, error = fetch_package_info(repo, name, None)
+        ver = version if name == root else None
+        info, error = fetch_package_info(repo, name, ver)
         if error is not None:
             return []
         return [dep for dep, _ in get_direct_dependencies(info)]
@@ -181,7 +182,8 @@ def run_real_mode(args):
         return 1
     deps = get_direct_dependencies(info)
     print_dependencies(args.package, args.version, deps)
-    show_graph(build_graph(make_real_get_deps(args.repo), args.package))
+    provider = make_real_get_deps(args.repo, args.package, args.version)
+    show_graph(build_graph(provider, args.package))
     return 0
 
 
