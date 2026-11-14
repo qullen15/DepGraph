@@ -10,6 +10,7 @@ import urllib.request
 from urllib.parse import urlparse
 from graph import (load_test_graph, build_graph, find_cycle,
                    print_graph, reverse_graph)
+from render import to_dot, ascii_tree, render_image, show_image
 
 PACKAGE_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$")
 VERSION_RE = re.compile(r"^\d+(\.\d+)*((a|b|rc)\d+)?$")
@@ -198,8 +199,9 @@ def run_test_mode(args):
     if args.reverse:
         show_reverse(graph, args.package)
         return 0
-    show_graph(build_graph(lambda name: graph.get(name, []), args.package))
-    return 0
+    deps_graph = build_graph(lambda name: graph.get(name, []), args.package)
+    show_graph(deps_graph)
+    return visualize(deps_graph, args)
 
 
 def run_real_mode(args):
@@ -211,7 +213,26 @@ def run_real_mode(args):
     deps = get_direct_dependencies(info)
     print_dependencies(args.package, args.version, deps)
     provider = make_real_get_deps(args.repo, args.package, args.version)
-    show_graph(build_graph(provider, args.package))
+    deps_graph = build_graph(provider, args.package)
+    show_graph(deps_graph)
+    return visualize(deps_graph, args)
+
+
+def visualize(deps_graph, args):
+    """Печатает DOT, ASCII-дерево и показывает изображение графа."""
+    if args.ascii_tree:
+        print("ASCII-дерево:")
+        for line in ascii_tree(deps_graph, args.package):
+            print(line)
+    dot_text = to_dot(deps_graph)
+    print("Описание графа на языке Graphviz:")
+    print(dot_text)
+    path, error = render_image(dot_text, args.package)
+    if error is not None:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return 1
+    print(f"Изображение графа: {path}")
+    show_image(path)
     return 0
 
 
