@@ -8,7 +8,8 @@ import sys
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
-from graph import load_test_graph, build_graph, find_cycle, print_graph, reverse_graph
+from graph import (load_test_graph, build_graph, find_cycle,
+                   print_graph, reverse_graph)
 
 PACKAGE_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$")
 VERSION_RE = re.compile(r"^\d+(\.\d+)*((a|b|rc)\d+)?$")
