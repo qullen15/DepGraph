@@ -11,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import render
 from render import to_dot, ascii_tree, render_image
 
+EXPECTED_LINES = 3
+
 
 class TestToDot:
     """Формирование текста на языке Graphviz."""
@@ -40,7 +42,7 @@ class TestAsciiTree:
 
     def test_branches(self):
         lines = ascii_tree({"A": ["B", "C"], "B": [], "C": []}, "A")
-        assert len(lines) == 3
+        assert len(lines) == EXPECTED_LINES
 
 
 class TestRenderImage:

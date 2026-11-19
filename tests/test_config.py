@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from main import (build_parser, validate_package, validate_version,
                   validate_repo, main)
 
+USAGE_ERROR_CODE = 2
+
 
 class TestBuildParser:
     """Разбор параметров командной строки."""
@@ -34,7 +36,7 @@ class TestBuildParser:
     def test_missing_required_exits(self):
         with pytest.raises(SystemExit) as exc:
             build_parser().parse_args([])
-        assert exc.value.code == 2
+        assert exc.value.code == USAGE_ERROR_CODE
 
 
 class TestValidators:
